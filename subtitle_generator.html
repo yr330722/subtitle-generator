@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片字幕生成器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: inline-block;
+            width: 120px;
+        }
+        input[type="file"] {
+            margin-bottom: 20px;
+        }
+        input[type="number"] {
+            width: 80px;
+        }
+        input[type="color"] {
+            vertical-align: middle;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 10px;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+        }
+        .btn-group {
+            margin-top: 20px;
+            margin-bottom: 30px;
+        }
+        button {
+            padding: 10px 20px;
+            margin-right: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #preview {
+            max-width: 100%;
+            margin-top: 20px;
+            display: none;
+        }
+        #imagePreview {
+            max-width: 100%;
+            margin-top: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>图片字幕生成器</h1>
+    
+    <div class="form-group">
+        <label for="imageInput">选择文件:</label>
+        <input type="file" id="imageInput" accept="image/*">
+    </div>
+    
+    <div class="form-group">
+        <label for="subtitleHeight">字幕高度(px):</label>
+        <input type="number" id="subtitleHeight" value="120" min="20" max="300">
+        
+        <label for="fontSize" style="margin-left: 20px;">字体大小(px):</label>
+        <input type="number" id="fontSize" value="90" min="10" max="200">
+    </div>
+    
+    <div class="form-group">
+        <label for="strokeWidth">文字描边宽度:</label>
+        <input type="number" id="strokeWidth" value="4" min="0" max="15" step="0.5">
+        
+        <label for="strokeColor" style="margin-left: 20px;">描边颜色:</label>
+        <input type="color" id="strokeColor" value="#000000">
+    </div>
+    
+    <div class="form-group">
+        <label for="fontColor">字体颜色:</label>
+        <input type="color" id="fontColor" value="#FFFFFF">
+        
+        <label for="bgColor" style="margin-left: 20px;">背景颜色:</label>
+        <input type="color" id="bgColor" value="#000000">
+    </div>
+    
+    <div class="form-group">
+        <label for="opacity">背景透明度:</label>
+        <input type="range" id="opacity" min="0" max="1" step="0.1" value="0.7">
+        <span id="opacityValue">0.7</span>
+    </div>
+    
+    <div class="form-group">
+        <label for="strokeWidth">文字描边宽度:</label>
+        <input type="number" id="strokeWidth" value="3" min="0" max="15" step="0.5">
+        
+        <label for="strokeColor" style="margin-left: 20px;">描边颜色:</label>
+        <input type="color" id="strokeColor" value="#000000">
+    </div>
+    
+    <textarea id="subtitleText" placeholder="请输入字幕文本，每行将作为一个独立的字幕行显示"></textarea>
+    
+    <div class="btn-group">
+        <button id="generateBtn">生成字幕图片</button>
+        <button id="saveBtn">保存图片</button>
+    </div>
+    
+    <img id="imagePreview" alt="预览图片">
+    <canvas id="preview"></canvas>
+    
+    <script>
+        // 获取DOM元素
+        const imageInput = document.getElementById('imageInput');
+        const subtitleHeight = document.getElementById('subtitleHeight');
+        const fontSize = document.getElementById('fontSize');
+        const fontColor = document.getElementById('fontColor');
+        const bgColor = document.getElementById('bgColor');
+        const opacity = document.getElementById('opacity');
+        const opacityValue = document.getElementById('opacityValue');
+        const strokeWidth = document.getElementById('strokeWidth');
+        const strokeColor = document.getElementById('strokeColor');
+        const subtitleText = document.getElementById('subtitleText');
+        const generateBtn = document.getElementById('generateBtn');
+        const saveBtn = document.getElementById('saveBtn');
+        const preview = document.getElementById('preview');
+        const imagePreview = document.getElementById('imagePreview');
+        
+        let originalImage = null;
+        
+        // 更新透明度显示值
+        opacity.addEventListener('input', function() {
+            opacityValue.textContent = this.value;
+        });
+        
+        // 处理图片上传
+        imageInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    imagePreview.src = event.target.result;
+                    imagePreview.style.display = 'block';
+                    preview.style.display = 'none';
+                    
+                    // 加载原始图片以便后续处理
+                    originalImage = new Image();
+                    originalImage.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        // 生成字幕图片
+        generateBtn.addEventListener('click', function() {
+            if (!originalImage) {
+                alert('请先选择一张图片');
+                return;
+            }
+            
+            const ctx = preview.getContext('2d');
+            const lines = subtitleText.value.split('\n').filter(line => line.trim() !== '');
+            
+            if (lines.length === 0) {
+                alert('请输入字幕文本');
+                return;
+            }
+            
+            // 设置画布尺寸
+            const subtitleHeightValue = parseInt(subtitleHeight.value);
+            const totalSubtitleHeight = subtitleHeightValue * lines.length;
+            preview.width = originalImage.width;
+            preview.height = originalImage.height + totalSubtitleHeight;
+            
+            // 绘制原始图片
+            ctx.drawImage(originalImage, 0, 0);
+            
+            // 设置字体
+            const fontSizeValue = parseInt(fontSize.value);
+            ctx.font = `bold ${fontSizeValue}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.fillStyle = fontColor.value;
+            
+            // 绘制字幕背景和文本
+            const bgColorValue = bgColor.value;
+            const opacityValue = parseFloat(opacity.value);
+            const strokeWidthValue = parseFloat(strokeWidth.value);
+            const strokeColorValue = strokeColor.value;
+            
+            // 将颜色转换为rgba格式
+            const r = parseInt(bgColorValue.slice(1, 3), 16);
+            const g = parseInt(bgColorValue.slice(3, 5), 16);
+            const b = parseInt(bgColorValue.slice(5, 7), 16);
+            const bgColorRGBA = `rgba(${r}, ${g}, ${b}, ${opacityValue})`;
+            
+            // 获取第一行字幕位置的图片部分
+            const subtitleStartY = originalImage.height - subtitleHeightValue;
+            const backgroundImage = ctx.getImageData(0, subtitleStartY, preview.width, subtitleHeightValue);
+            
+            lines.forEach((line, index) => {
+                const y = originalImage.height + (index * subtitleHeightValue);
+                
+                // 先绘制背景图片
+                ctx.putImageData(backgroundImage, 0, y);
+                
+                // 添加半透明遮罩
+                ctx.fillStyle = bgColorRGBA;
+                ctx.fillRect(0, y, preview.width, subtitleHeightValue);
+                
+                // 文字垂直居中位置
+                const textY = y + (subtitleHeightValue / 2) + (fontSizeValue / 3);
+                
+                // 绘制文字描边
+                if (strokeWidthValue > 0) {
+                    ctx.strokeStyle = strokeColorValue;
+                    ctx.lineWidth = strokeWidthValue;
+                    ctx.lineJoin = 'round';
+                    ctx.strokeText(line, preview.width / 2, textY);
+                }
+                
+                // 绘制文本
+                ctx.fillStyle = fontColor.value;
+                ctx.fillText(line, preview.width / 2, textY);
+            });
+            
+            // 显示预览
+            preview.style.display = 'block';
+            imagePreview.style.display = 'none';
+        });
+        
+        // 保存图片
+        saveBtn.addEventListener('click', function() {
+            if (preview.style.display === 'none') {
+                alert('请先生成字幕图片');
+                return;
+            }
+            
+            // 创建下载链接
+            const link = document.createElement('a');
+            link.download = 'subtitle_image.png';
+            link.href = preview.toDataURL('image/png');
+            link.click();
+        });
+    </script>
+</body>
+</html>
